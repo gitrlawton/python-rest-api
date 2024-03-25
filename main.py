@@ -54,6 +54,15 @@ video_put_args = reqparse.RequestParser()
 video_put_args.add_argument("name", type=str, help="Name of the video is required", required=True)
 video_put_args.add_argument("views", type=int, help="Views of the video is required", required=True)
 video_put_args.add_argument("likes", type=int, help="Likes of the video is required", required=True)
+# Create separate request parser for updating.
+video_update_args = reqparse.RequestParser()
+# None of the args for updating will be required, this way the user can choose
+# to provide values for the args they want to update, without having to re-
+# provide values for the other args, only to keep them the same.
+video_update_args.add_argument("name", type=str, help="Name of the video")
+video_update_args.add_argument("views", type=int, help="Views of the video")
+video_update_args.add_argument("likes", type=int, help="Likes of the video")
+
 
 videos = {}
 
@@ -96,6 +105,9 @@ class Video(Resource):
         # have an id that matches our video_id. Then, first() selects the
         # first one.
         result = VideoModel.query.filter_by(id=video_id).first()
+        # If query returned no result...
+        if not result:
+            abort(404, message="Could not find video with that id.")
         # Result is an instance of VideoModel, which will be transformed
         # into a dictionary by the marshal_with decorator.
         return result
@@ -134,7 +146,27 @@ class Video(Resource):
         db.session.commit()
         
         return video, 201
+    
+    @marshal_with(resource_fields)
+    def patch(self, video_id):
+        args = video_update_args.parse_args()
+        result = VideoModel.query.filter_by(id=video_id).first()
+        if not result:
+            abort(404, message="Video doesn't exist, cannot update.")
         
+        # Check if the value for each of the properties is not None.
+        if args['name']:
+            result.name = args['name']
+        if args['views']:
+            result.views = args['views']
+        if args['likes']:
+            result.likes = args['likes']
+            
+        # Note: because we are updating, we don't need to have a 
+        # db.session.add() statement here, just a commit.
+        db.session.commit()
+        
+        return result
         
     def delete(self, video_id):
         # If video to delete does not exist, abort.
